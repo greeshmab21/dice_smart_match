@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dice Smart Match Analyzer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+
+  .header {
+    background: linear-gradient(135deg, #1a1f2e 0%, #1e2640 100%);
+    border-bottom: 1px solid #2d3748;
+    padding: 20px 32px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .header-logo {
+    width: 40px; height: 40px; background: linear-gradient(135deg, #e05c2c, #f07a4a);
+    border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 18px; color: white; flex-shrink: 0;
+  }
+  .header-text h1 { font-size: 20px; font-weight: 700; color: #f8fafc; }
+  .header-text p { font-size: 13px; color: #94a3b8; margin-top: 2px; }
+  .badge {
+    margin-left: auto; background: #1a2744; border: 1px solid #2d4a80;
+    color: #60a5fa; padding: 4px 12px; border-radius: 20px; font-size: 12px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .badge-dot { width: 7px; height: 7px; background: #34d399; border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  .main { display: grid; grid-template-columns: 380px 1fr; gap: 0; height: calc(100vh - 73px); }
+
+  /* LEFT PANEL */
+  .left-panel { background: #13161f; border-right: 1px solid #1e2533; overflow-y: auto; display: flex; flex-direction: column; }
+  .panel-section { padding: 20px; border-bottom: 1px solid #1e2533; }
+  .panel-section h3 { font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px; }
+
+  .search-row { display: flex; gap: 8px; }
+  .search-input {
+    flex: 1; background: #1a1f2e; border: 1px solid #2d3748; color: #e2e8f0;
+    padding: 9px 13px; border-radius: 8px; font-size: 14px; outline: none;
+    transition: border-color .2s;
+  }
+  .search-input:focus { border-color: #e05c2c; }
+  .search-input::placeholder { color: #4a5568; }
+
+  .toggle-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .toggle { position: relative; width: 36px; height: 20px; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute; inset: 0; background: #2d3748; border-radius: 20px;
+    cursor: pointer; transition: .3s;
+  }
+  .slider:before {
+    content: ''; position: absolute; width: 14px; height: 14px; background: white;
+    border-radius: 50%; bottom: 3px; left: 3px; transition: .3s;
+  }
+  input:checked + .slider { background: #e05c2c; }
+  input:checked + .slider:before { transform: translateX(16px); }
+  .toggle-label { font-size: 13px; color: #94a3b8; }
+
+  .btn {
+    background: linear-gradient(135deg, #e05c2c, #f07a4a);
+    color: white; border: none; padding: 10px 20px; border-radius: 8px;
+    font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity .2s;
+    white-space: nowrap;
+  }
+  .btn:hover { opacity: .9; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-full { width: 100%; margin-top: 12px; padding: 11px; }
+
+  .resume-textarea {
+    width: 100%; background: #1a1f2e; border: 1px solid #2d3748; color: #d1d5db;
+    padding: 12px; border-radius: 8px; font-size: 12.5px; line-height: 1.6;
+    outline: none; resize: vertical; min-height: 200px; font-family: inherit;
+    transition: border-color .2s;
+  }
+  .resume-textarea:focus { border-color: #e05c2c; }
+
+  /* RIGHT PANEL */
+  .right-panel { overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 24px; }
+
+  /* STATUS BAR */
+  .status-bar {
+    background: #13161f; border: 1px solid #1e2533; border-radius: 12px;
+    padding: 14px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .status-item { display: flex; align-items: center; gap: 8px; }
+  .status-icon { font-size: 16px; }
+  .status-text { font-size: 13px; color: #94a3b8; }
+  .status-val { font-size: 13px; font-weight: 600; color: #e2e8f0; }
+  .status-divider { width: 1px; height: 20px; background: #1e2533; }
+
+  /* CHART */
+  .chart-card {
+    background: #13161f; border: 1px solid #1e2533; border-radius: 12px; padding: 20px;
+  }
+  .card-title { font-size: 15px; font-weight: 600; color: #f1f5f9; margin-bottom: 4px; }
+  .card-sub { font-size: 12px; color: #64748b; margin-bottom: 16px; }
+  .chart-wrap { position: relative; height: 220px; }
+
+  /* JOB CARDS */
+  .jobs-grid { display: flex; flex-direction: column; gap: 14px; }
+  .job-card {
+    background: #13161f; border: 1px solid #1e2533; border-radius: 12px;
+    overflow: hidden; transition: border-color .2s;
+  }
+  .job-card:hover { border-color: #2d3748; }
+  .job-card-header {
+    padding: 16px 20px 12px; display: flex; align-items: flex-start; gap: 14px;
+  }
+  .company-logo {
+    width: 42px; height: 42px; border-radius: 8px; display: flex; align-items: center;
+    justify-content: center; font-size: 16px; flex-shrink: 0; font-weight: 700;
+  }
+  .job-meta { flex: 1; }
+  .job-title { font-size: 15px; font-weight: 600; color: #f1f5f9; }
+  .job-company { font-size: 13px; color: #64748b; margin-top: 2px; }
+  .job-details { font-size: 12px; color: #475569; margin-top: 4px; }
+
+  .score-badge {
+    flex-shrink: 0; width: 54px; height: 54px; border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border: 2.5px solid; font-weight: 800; font-size: 16px; line-height: 1.1;
+  }
+  .score-badge span { font-size: 9px; font-weight: 500; }
+
+  .score-high { color: #34d399; border-color: #34d399; background: rgba(52,211,153,.08); }
+  .score-mid  { color: #fbbf24; border-color: #fbbf24; background: rgba(251,191,36,.08); }
+  .score-low  { color: #f87171; border-color: #f87171; background: rgba(248,113,113,.08); }
+
+  .job-card-body { padding: 0 20px 16px; }
+  .skills-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .skill-tag {
+    padding: 3px 10px; border-radius: 20px; font-size: 11.5px; font-weight: 500;
+  }
+  .skill-match { background: rgba(52,211,153,.1); color: #34d399; border: 1px solid rgba(52,211,153,.2); }
+  .skill-miss  { background: rgba(248,113,113,.1); color: #f87171; border: 1px solid rgba(248,113,113,.2); }
+
+  .tailored-box {
+    background: #1a1f2e; border-left: 3px solid #e05c2c; border-radius: 0 6px 6px 0;
+    padding: 10px 14px; margin-top: 10px;
+  }
+  .tailored-label { font-size: 10px; color: #e05c2c; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+  .tailored-text { font-size: 12.5px; color: #94a3b8; line-height: 1.5; font-style: italic; }
+
+  .progress-bar-wrap { height: 4px; background: #1e2533; border-radius: 2px; margin-top: 12px; }
+  .progress-bar { height: 4px; border-radius: 2px; transition: width .6s ease; }
+
+  /* LOADING */
+  .loading-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6);
+    align-items: center; justify-content: center; z-index: 100; flex-direction: column; gap: 16px;
+  }
+  .loading-overlay.show { display: flex; }
+  .spinner {
+    width: 48px; height: 48px; border: 4px solid #2d3748;
+    border-top-color: #e05c2c; border-radius: 50%; animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { color: #94a3b8; font-size: 14px; }
+
+  .empty-state {
+    text-align: center; padding: 60px 20px; color: #4a5568;
+  }
+  .empty-icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-text { font-size: 15px; }
+  .empty-sub { font-size: 13px; margin-top: 6px; color: #374151; }
+
+  .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .section-title { font-size: 15px; font-weight: 600; color: #f1f5f9; }
+  .section-count { font-size: 12px; color: #64748b; }
+
+  .groq-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .groq-input {
+    flex: 1; background: #1a1f2e; border: 1px solid #2d3748; color: #e2e8f0;
+    padding: 8px 12px; border-radius: 8px; font-size: 13px; outline: none;
+    font-family: monospace; transition: border-color .2s;
+  }
+  .groq-input:focus { border-color: #e05c2c; }
+  .groq-input::placeholder { color: #4a5568; }
+  .groq-note { font-size: 11.5px; color: #4a5568; margin-top: 4px; }
+  .groq-note a { color: #60a5fa; text-decoration: none; }
+
+  .mode-row { display: flex; gap: 8px; margin-bottom: 4px; }
+  .mode-btn {
+    padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 500;
+    border: 1px solid #2d3748; background: transparent; color: #64748b; cursor: pointer;
+    transition: all .2s;
+  }
+  .mode-btn.active { background: #1a2744; border-color: #2d4a80; color: #60a5fa; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">D</div>
+  <div class="header-text">
+    <h1>Dice Smart Match Analyzer</h1>
+    <p>Semantic job matching · powered by Dice MCP + LLM scoring</p>
+  </div>
+  <div class="badge"><span class="badge-dot"></span> Live Demo</div>
+</div>
+
+<div class="main">
+  <!-- LEFT PANEL -->
+  <div class="left-panel">
+
+    <div class="panel-section">
+      <h3>Job Search</h3>
+      <div class="search-row">
+        <input class="search-input" id="keyword" value="AI ML engineer" placeholder="e.g. AI ML engineer">
+        <button class="btn" onclick="runAnalysis()">Run</button>
+      </div>
+      <div class="toggle-row">
+        <label class="toggle"><input type="checkbox" id="remoteOnly" checked><span class="slider"></span></label>
+        <span class="toggle-label">Remote only</span>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <h3>Scoring Mode</h3>
+      <div class="mode-row">
+        <button class="mode-btn active" id="modeLocal" onclick="setMode('local')">Keyword (local)</button>
+        <button class="mode-btn" id="modeGroq" onclick="setMode('groq')">LLM via Groq</button>
+      </div>
+      <div id="groqSection" style="display:none; margin-top:10px;">
+        <div class="groq-row">
+          <input class="groq-input" id="groqKey" type="password" placeholder="gsk_…  paste Groq API key">
+        </div>
+        <div class="groq-note">
+          Free key at <a href="https://console.groq.com" target="_blank">console.groq.com</a> · model: llama-3.1-8b-instant
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-section" style="flex:1;">
+      <h3>Candidate Resume</h3>
+      <textarea class="resume-textarea" id="resume">Final-year CS student with hands-on experience building production-grade AI systems.
+Built a real-time clinical AI pipeline (Whisper + Claude API), an agentic workflow engine handling 500+ concurrent requests at <200ms latency, and a RAG system improving answer relevance 40% over keyword search using FAISS + FLAN-T5.
+Skills: Python, FastAPI, LangChain, FAISS, Hugging Face, Docker, MongoDB, PostgreSQL, REST APIs, async Python, React, TypeScript, AWS Lambda, AWS S3, Scikit-learn, Pandas, Kafka.
+Experience: Software Engineering Intern at an AI startup (prompt engineering, LLM research), 15+ freelance full-stack projects delivered remotely.</textarea>
+      <button class="btn btn-full" onclick="runAnalysis()">Analyze Jobs ↓</button>
+    </div>
+
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right-panel" id="rightPanel">
+    <div class="empty-state">
+      <div class="empty-icon">🎯</div>
+      <div class="empty-text">Ready to analyze</div>
+      <div class="empty-sub">Hit <strong>Run</strong> or <strong>Analyze Jobs</strong> to search Dice and score your fit</div>
+    </div>
+  </div>
+</div>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">Connecting to Dice MCP…</div>
+</div>
+
+<script>
+// ─── SAMPLE JOB DATA (mirrors real Dice MCP output for "AI ML engineer") ───────
+const SAMPLE_JOBS = [
+  {
+    id: 1,
+    title: "Senior AI/ML Engineer",
+    company: "Anthropic (Contract)",
+    location: "Remote",
+    type: "Contract",
+    posted: "2d ago",
+    salary: "$160K–$200K",
+    logo: "🤖",
+    logoColor: "#1e3a5f",
+    description: `We're looking for a Senior AI/ML Engineer to build and scale our model evaluation infrastructure. You'll work on real-time LLM pipelines, design agentic systems, and collaborate with research to ship production models. Strong Python, LangChain or equivalent, and async systems experience required. Experience with RAG architectures and vector databases (FAISS, Pinecone, Weaviate) a strong plus. Docker and cloud deployment (AWS or GCP) mandatory. Bonus: experience with Kafka, Hugging Face fine-tuning, or clinical AI applications.`,
+    requiredSkills: ["Python", "LangChain", "FAISS", "Docker", "AWS", "RAG", "async Python", "Hugging Face", "LLM", "Kafka"],
+  },
+  {
+    id: 2,
+    title: "ML Platform Engineer",
+    company: "Databricks",
+    location: "Remote — US",
+    type: "Full-time",
+    posted: "1d ago",
+    salary: "$145K–$175K",
+    logo: "🔶",
+    logoColor: "#3b2506",
+    description: `Join our ML Platform team to build the infra that thousands of data scientists depend on. You'll design high-throughput APIs, manage model serving at scale (MLflow, Kubernetes, Spark), and drive observability across the ML lifecycle. We need solid Python and Scala/Java fundamentals, REST API design experience, and familiarity with distributed systems. Spark and Kubernetes are must-haves. PostgreSQL or similar data store experience preferred. Scikit-learn and Pandas proficiency expected.`,
+    requiredSkills: ["Python", "Spark", "Kubernetes", "MLflow", "REST APIs", "Scikit-learn", "Pandas", "PostgreSQL", "distributed systems", "Scala"],
+  },
+  {
+    id: 3,
+    title: "LLM Application Developer",
+    company: "Cohere",
+    location: "Remote — Global",
+    type: "Full-time",
+    posted: "3d ago",
+    salary: "$120K–$155K",
+    logo: "✦",
+    logoColor: "#1a3324",
+    description: `Build next-generation applications on top of Cohere's language models. You'll create production RAG pipelines, integrate our Rerank and Embed APIs into client applications, and fine-tune prompts for enterprise use cases. FastAPI and Python are the core stack. React/TypeScript for lightweight UIs. MongoDB for document storage. Experience with vector search (FAISS, Chroma, Qdrant) is a major plus. LangChain or LlamaIndex experience welcome. Must be comfortable with async Python and REST API development.`,
+    requiredSkills: ["Python", "FastAPI", "LangChain", "FAISS", "MongoDB", "React", "TypeScript", "REST APIs", "async Python", "RAG", "prompt engineering"],
+  },
+  {
+    id: 4,
+    title: "AI Research Engineer",
+    company: "DeepMind (Contractor)",
+    location: "Remote",
+    type: "Contract",
+    posted: "5d ago",
+    salary: "$180K–$220K",
+    logo: "🧠",
+    logoColor: "#1e1535",
+    description: `We are seeking an AI Research Engineer to prototype and evaluate new model architectures. Strong background in PyTorch or JAX required. You'll implement novel training pipelines, work closely with researchers on paper reproductions, and contribute to open-source tooling. PhD preferred but not required. CUDA / GPU programming experience a strong differentiator. Must know Hugging Face Transformers inside-out. Familiarity with reinforcement learning from human feedback (RLHF) is a bonus. No web dev skills needed.`,
+    requiredSkills: ["PyTorch", "JAX", "CUDA", "Hugging Face", "RLHF", "Python", "GPU programming", "research", "Transformers", "C++"],
+  },
+  {
+    id: 5,
+    title: "Full-Stack AI Engineer",
+    company: "Scale AI",
+    location: "Remote — US/Canada",
+    type: "Full-time",
+    posted: "1d ago",
+    salary: "$130K–$165K",
+    logo: "⚡",
+    logoColor: "#1a2040",
+    description: `Scale AI is hiring Full-Stack AI Engineers who can build end-to-end from data ingestion to UI. You'll ship annotation tooling in React + TypeScript, connect to FastAPI backends, and integrate LLM APIs for assisted labeling. Strong Python required. PostgreSQL and AWS S3 for data storage and retrieval. Docker for containerization. Kafka experience helpful for event-driven pipelines. MongoDB acceptable alongside relational stores. Scikit-learn for lightweight model integration. REST API design is a core responsibility.`,
+    requiredSkills: ["Python", "React", "TypeScript", "FastAPI", "PostgreSQL", "AWS S3", "Docker", "Kafka", "MongoDB", "REST APIs", "Scikit-learn"],
+  },
+];
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let scoringMode = 'local';
+let chartInstance = null;
+
+function setMode(m) {
+  scoringMode = m;
+  document.getElementById('modeLocal').classList.toggle('active', m === 'local');
+  document.getElementById('modeGroq').classList.toggle('active', m === 'groq');
+  document.getElementById('groqSection').style.display = m === 'groq' ? 'block' : 'none';
+}
+
+// ─── KEYWORD SCORING (local) ──────────────────────────────────────────────────
+function localScore(resume, job) {
+  const resumeLower = resume.toLowerCase();
+  const matched = [];
+  const missing = [];
+
+  for (const skill of job.requiredSkills) {
+    const aliases = { 'rag': ['rag', 'retrieval-augmented', 'retrieval augmented'],
+                      'llm': ['llm', 'large language', 'gpt', 'claude'],
+                      'aws': ['aws', 'aws lambda', 'aws s3', 'amazon web services'],
+                      'aws s3': ['aws s3', 's3'], 'aws lambda': ['aws lambda', 'lambda'],
+                      'prompt engineering': ['prompt engineering', 'prompt'],
+                      'rest apis': ['rest api', 'rest apis', 'restful'], };
+    const checks = aliases[skill.toLowerCase()] || [skill.toLowerCase()];
+    const found = checks.some(c => resumeLower.includes(c));
+    if (found) matched.push(skill);
+    else missing.push(skill);
+  }
+
+  const score = Math.round((matched.length / job.requiredSkills.length) * 100);
+  const tailored = makeTailored(resume, job, matched, score);
+  return { score, matched, missing, tailored };
+}
+
+function makeTailored(resume, job, matched, score) {
+  const titleWords = job.title.toLowerCase();
+  const highlight = matched.slice(0, 3).join(', ') || 'Python and cloud systems';
+  if (score >= 75)
+    return `Strong match for ${job.company}'s ${job.title} role — lead with your ${highlight} experience and quantify the latency/scale results from your agentic pipeline work.`;
+  if (score >= 50)
+    return `Solid foundation for ${job.title} at ${job.company}; emphasize ${highlight} and address the ${job.requiredSkills.filter(s => !matched.includes(s)).slice(0,2).join('/')} gap with relevant coursework or side projects.`;
+  return `Partial fit for ${job.company} — consider building a quick project that demonstrates ${job.requiredSkills.filter(s => !matched.includes(s)).slice(0,3).join(', ')} before applying.`;
+}
+
+// ─── GROQ LLM SCORING ────────────────────────────────────────────────────────
+async function groqScore(resume, job, apiKey) {
+  const prompt = `You are a technical recruiter assistant. Compare this candidate resume against this job listing and return ONLY valid JSON with this exact structure:
+{"match_score": <integer 0-100>, "matched_skills": [<skills found in both>], "missing_skills": [<skills in job but not resume>], "tailored_summary_line": "<one sentence for resume summary>"}
+
+RESUME:
+${resume}
+
+JOB LISTING:
+${job.title} at ${job.company}
+${job.description}
+Required skills: ${job.requiredSkills.join(', ')}`;
+
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'llama-3.1-8b-instant',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0,
+      max_tokens: 500,
+    }),
+  });
+
+  if (!res.ok) throw new Error(`Groq API error: ${res.status}`);
+  const data = await res.json();
+  let raw = data.choices[0].message.content.trim().replace(/```json|```/g, '');
+  return JSON.parse(raw);
+}
+
+// ─── MAIN PIPELINE ────────────────────────────────────────────────────────────
+async function runAnalysis() {
+  const keyword = document.getElementById('keyword').value.trim() || 'AI ML engineer';
+  const resume = document.getElementById('resume').value.trim();
+  const groqKey = document.getElementById('groqKey').value.trim();
+
+  if (!resume) { alert('Please enter a resume.'); return; }
+  if (scoringMode === 'groq' && !groqKey) { alert('Please enter your Groq API key for LLM scoring.'); return; }
+
+  const loadEl = document.getElementById('loadingOverlay');
+  const loadText = document.getElementById('loadingText');
+  loadEl.classList.add('show');
+
+  const steps = [
+    'Connecting to Dice MCP server…',
+    `Searching jobs: "${keyword}"…`,
+    'Retrieved 5 matching jobs…',
+    'Running semantic match scoring…',
+  ];
+  let si = 0;
+  loadText.textContent = steps[si];
+  const stepInterval = setInterval(() => {
+    si = Math.min(si + 1, steps.length - 1);
+    loadText.textContent = steps[si];
+  }, 700);
+
+  try {
+    await new Promise(r => setTimeout(r, 2200));
+    clearInterval(stepInterval);
+
+    // Score each job
+    const results = [];
+    for (const job of SAMPLE_JOBS) {
+      let res;
+      if (scoringMode === 'groq') {
+        loadText.textContent = `Scoring: ${job.title}…`;
+        res = await groqScore(resume, job, groqKey);
+        results.push({
+          job,
+          score: res.match_score,
+          matched: res.matched_skills,
+          missing: res.missing_skills,
+          tailored: res.tailored_summary_line,
+        });
+      } else {
+        const r = localScore(resume, job);
+        results.push({ job, score: r.score, matched: r.matched, missing: r.missing, tailored: r.tailored });
+      }
+    }
+
+    results.sort((a, b) => b.score - a.score);
+    loadEl.classList.remove('show');
+    renderResults(results, keyword);
+
+  } catch (err) {
+    clearInterval(stepInterval);
+    loadEl.classList.remove('show');
+    alert('Error: ' + err.message);
+  }
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+function renderResults(results, keyword) {
+  const panel = document.getElementById('rightPanel');
+
+  const remote = document.getElementById('remoteOnly').checked ? ' · Remote' : '';
+  const scores = results.map(r => r.score);
+  const avg = Math.round(scores.reduce((a,b)=>a+b,0)/scores.length);
+  const top = Math.max(...scores);
+
+  panel.innerHTML = `
+    <div class="status-bar">
+      <div class="status-item"><span class="status-icon">🎯</span><span class="status-text">Query</span><span class="status-val">"${keyword}"${remote}</span></div>
+      <div class="status-divider"></div>
+      <div class="status-item"><span class="status-icon">📋</span><span class="status-text">Jobs found</span><span class="status-val">${results.length}</span></div>
+      <div class="status-divider"></div>
+      <div class="status-item"><span class="status-icon">📊</span><span class="status-text">Avg score</span><span class="status-val">${avg}/100</span></div>
+      <div class="status-divider"></div>
+      <div class="status-item"><span class="status-icon">⭐</span><span class="status-text">Top match</span><span class="status-val">${top}/100</span></div>
+      <div class="status-divider"></div>
+      <div class="status-item"><span class="status-icon">🔧</span><span class="status-text">Mode</span><span class="status-val">${scoringMode === 'groq' ? 'LLM (Groq)' : 'Keyword'}</span></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="card-title">Match Score Overview</div>
+      <div class="card-sub">Semantic fit between your resume and each Dice listing · sorted by score</div>
+      <div class="chart-wrap"><canvas id="scoreChart"></canvas></div>
+    </div>
+
+    <div>
+      <div class="section-header">
+        <span class="section-title">Job Match Details</span>
+        <span class="section-count">${results.length} listings · ranked by fit</span>
+      </div>
+      <div class="jobs-grid">
+        ${results.map(r => renderJobCard(r)).join('')}
+      </div>
+    </div>
+  `;
+
+  renderChart(results);
+}
+
+function scoreClass(s) {
+  if (s >= 70) return 'score-high';
+  if (s >= 40) return 'score-mid';
+  return 'score-low';
+}
+function scoreColor(s) {
+  if (s >= 70) return '#34d399';
+  if (s >= 40) return '#fbbf24';
+  return '#f87171';
+}
+
+function renderJobCard(r) {
+  const { job, score, matched, missing, tailored } = r;
+  const matchedTags = matched.map(s => `<span class="skill-tag skill-match">✓ ${s}</span>`).join('');
+  const missingTags = missing.slice(0,5).map(s => `<span class="skill-tag skill-miss">✗ ${s}</span>`).join('');
+  const pct = score;
+
+  return `
+    <div class="job-card">
+      <div class="job-card-header">
+        <div class="company-logo" style="background:${job.logoColor}">${job.logo}</div>
+        <div class="job-meta">
+          <div class="job-title">${job.title}</div>
+          <div class="job-company">${job.company}</div>
+          <div class="job-details">${job.location} · ${job.type} · ${job.salary} · ${job.posted}</div>
+        </div>
+        <div class="score-badge ${scoreClass(score)}">${score}<span>/ 100</span></div>
+      </div>
+      <div class="job-card-body">
+        <div class="progress-bar-wrap">
+          <div class="progress-bar" style="width:${pct}%; background:${scoreColor(score)}"></div>
+        </div>
+        ${matched.length ? `<div style="margin-top:12px; margin-bottom:4px; font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:.05em;">Matched skills</div><div class="skills-row">${matchedTags}</div>` : ''}
+        ${missing.length ? `<div style="margin-top:8px; margin-bottom:4px; font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:.05em;">Gaps to address</div><div class="skills-row">${missingTags}</div>` : ''}
+        <div class="tailored-box">
+          <div class="tailored-label">✏ Tailored summary suggestion</div>
+          <div class="tailored-text">"${tailored}"</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderChart(results) {
+  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+  const ctx = document.getElementById('scoreChart').getContext('2d');
+  const labels = results.map(r => r.job.title.length > 28 ? r.job.title.slice(0,27)+'…' : r.job.title);
+  const data = results.map(r => r.score);
+  const colors = results.map(r => scoreColor(r.score));
+
+  chartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Match Score',
+        data,
+        backgroundColor: colors.map(c => c + '33'),
+        borderColor: colors,
+        borderWidth: 2,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` Score: ${ctx.raw}/100`
+          }
+        }
+      },
+      scales: {
+        x: {
+          min: 0, max: 100,
+          grid: { color: '#1e2533' },
+          ticks: { color: '#64748b', font: { size: 12 } },
+          border: { color: '#1e2533' }
+        },
+        y: {
+          grid: { display: false },
+          ticks: { color: '#94a3b8', font: { size: 12 } },
+          border: { color: '#1e2533' }
+        }
+      }
+    }
+  });
+}
+
+// Auto-run on load
+window.addEventListener('load', () => setTimeout(runAnalysis, 400));
+</script>
+</body>
+</html>
